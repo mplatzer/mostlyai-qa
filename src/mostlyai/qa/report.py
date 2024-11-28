@@ -42,11 +42,11 @@ from mostlyai.qa.common import (
     ProgressCallback,
     PrerequisiteNotMetError,
     check_min_sample_size,
-    add_tqdm,
     NXT_COLUMN,
     CTX_COLUMN_PREFIX,
     TGT_COLUMN_PREFIX,
     REPORT_CREDITS,
+    ProgressCallbackWrapper,
 )
 from mostlyai.qa.filesystem import Statistics, TemporaryWorkspace
 
@@ -71,7 +71,7 @@ def report(
     max_sample_size_accuracy: int | None = None,
     max_sample_size_embeddings: int | None = None,
     statistics_path: str | Path | None = None,
-    on_progress: ProgressCallback | None = None,
+    update_progress: ProgressCallback | None = None,
 ) -> tuple[Path, Metrics | None]:
     """
     Generate HTML report and metrics for comparing synthetic and original data samples.
@@ -93,7 +93,7 @@ def report(
         max_sample_size_accuracy: Max sample size for accuracy
         max_sample_size_embeddings: Max sample size for embeddings (similarity & distances)
         statistics_path: Path of where to store the statistics to be used by `report_from_statistics`
-        on_progress: A custom progress callback
+        update_progress: A custom progress callback
     Returns:
         1. Path to the HTML report
         2. Pydantic Metrics:
@@ -119,10 +119,10 @@ def report(
             - `dcr_share`: Share of synthetic samples that are closer to a training sample than to a holdout sample. This shall not be significantly larger than 50\%.
     """
 
-    with TemporaryWorkspace() as workspace:
-        on_progress = add_tqdm(on_progress, description="Creating report")
-        on_progress(current=0, total=100)
-
+    with (
+        TemporaryWorkspace() as workspace,
+        ProgressCallbackWrapper(update_progress, description="Create report 🚀") as progress,
+    ):
         # ensure all columns are present and in the same order as training data
         syn_tgt_data = syn_tgt_data[trn_tgt_data.columns]
         if hol_tgt_data is not None:
@@ -165,7 +165,6 @@ def report(
             _LOG.info(err)
             statistics.mark_early_exit()
             html_report.store_early_exit_report(report_path)
-            on_progress(current=100, total=100)
             return report_path, None
 
         # prepare datasets for accuracy
@@ -194,7 +193,7 @@ def report(
             max_sample_size=max_sample_size_accuracy,
             setup=setup,
         )
-        on_progress(current=5, total=100)
+        progress.update(completed=5, total=100)
 
         _LOG.info("prepare training data for accuracy started")
         trn = pull_data_for_accuracy(
@@ -205,7 +204,7 @@ def report(
             max_sample_size=max_sample_size_accuracy,
             setup=setup,
         )
-        on_progress(current=10, total=100)
+        progress.update(completed=10, total=100)
 
         # coerce dtypes to match the original training data dtypes
         for col in trn:
@@ -222,7 +221,7 @@ def report(
             statistics=statistics,
             workspace=workspace,
         )
-        on_progress(current=20, total=100)
+        progress.update(completed=20, total=100)
 
         # ensure that embeddings are all equal size for a fair 3-way comparison
         max_sample_size_embeddings = min(
@@ -232,7 +231,9 @@ def report(
             hol_sample_size or float("inf"),
         )
 
-        def _calc_pull_embeds(df_tgt: pd.DataFrame, df_ctx: pd.DataFrame, start: int, stop: int) -> np.ndarray:
+        def _calc_pull_embeds(
+            df_tgt: pd.DataFrame, df_ctx: pd.DataFrame, progress_from: int, progress_to: int
+        ) -> np.ndarray:
             strings = pull_data_for_embeddings(
                 df_tgt=df_tgt,
                 df_ctx=df_ctx,
@@ -241,24 +242,24 @@ def report(
                 max_sample_size=max_sample_size_embeddings,
             )
             # split into buckets for calculating embeddings to avoid memory issues and report continuous progress
-            buckets = np.array_split(strings, stop - start)
+            buckets = np.array_split(strings, progress_to - progress_from)
             buckets = [b for b in buckets if len(b) > 0]
             embeds = []
             for i, bucket in enumerate(buckets, 1):
                 embeds += [calculate_embeddings(bucket.tolist())]
-                on_progress(current=start + i, total=100)
-            on_progress(current=stop, total=100)
+                progress.update(completed=progress_from + i, total=100)
+            progress.update(completed=progress_to, total=100)
             embeds = np.concatenate(embeds, axis=0)
             _LOG.info(f"calculated embeddings {embeds.shape}")
             return embeds
 
-        syn_embeds = _calc_pull_embeds(df_tgt=syn_tgt_data, df_ctx=syn_ctx_data, start=20, stop=40)
-        trn_embeds = _calc_pull_embeds(df_tgt=trn_tgt_data, df_ctx=trn_ctx_data, start=40, stop=60)
+        syn_embeds = _calc_pull_embeds(df_tgt=syn_tgt_data, df_ctx=syn_ctx_data, progress_from=20, progress_to=40)
+        trn_embeds = _calc_pull_embeds(df_tgt=trn_tgt_data, df_ctx=trn_ctx_data, progress_from=40, progress_to=60)
         if hol_tgt_data is not None:
-            hol_embeds = _calc_pull_embeds(df_tgt=hol_tgt_data, df_ctx=hol_ctx_data, start=60, stop=80)
+            hol_embeds = _calc_pull_embeds(df_tgt=hol_tgt_data, df_ctx=hol_ctx_data, progress_from=60, progress_to=80)
         else:
             hol_embeds = None
-        on_progress(current=80, total=100)
+        progress.update(completed=80, total=100)
 
         _LOG.info("report similarity")
         sim_cosine_trn_hol, sim_cosine_trn_syn, sim_auc_trn_hol, sim_auc_trn_syn = report_similarity(
@@ -268,7 +269,7 @@ def report(
             workspace=workspace,
             statistics=statistics,
         )
-        on_progress(current=90, total=100)
+        progress.update(completed=90, total=100)
 
         _LOG.info("report distances")
         dcr_trn, dcr_hol = report_distances(
@@ -277,7 +278,7 @@ def report(
             hol_embeds=hol_embeds,
             workspace=workspace,
         )
-        on_progress(current=99, total=100)
+        progress.update(completed=99, total=100)
 
         metrics = calculate_metrics(
             acc_uni=acc_uni,
@@ -314,7 +315,7 @@ def report(
             acc_biv=acc_biv,
             corr_trn=corr_trn,
         )
-        on_progress(current=100, total=100)
+        progress.update(completed=100, total=100)
         return report_path, metrics
 
 
