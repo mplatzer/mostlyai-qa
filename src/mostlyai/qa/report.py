@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import logging
+import warnings
 from pathlib import Path
 
 import numpy as np
@@ -74,7 +75,19 @@ def report(
     update_progress: ProgressCallback | None = None,
 ) -> tuple[Path, Metrics | None]:
     """
-    Generate HTML report and metrics for comparing synthetic and original data samples.
+    Generate HTML report and metrics for assessing synthetic data quality.
+
+    Compares synthetic data samples with original training samples in terms of accuracy, similarity and distances.
+    Provide holdout samples to calculate reference values for similarity and distances (recommended).
+
+    If synthetic data has been generated conditionally on a context dataset, provide the context data as well. This
+    will allow for bivariate accuracy metrics between context and target to be calculated.
+
+    If the data represents sequential data, provide the `tgt_context_key` to set the groupby column for the target data.
+
+    Customize the report with the `report_title`, `report_subtitle`, `report_credits`, and `report_extra_info`.
+
+    Limit the compute time used by setting `max_sample_size_accuracy` and `max_sample_size_embeddings`.
 
     Args:
         syn_tgt_data: Synthetic samples
@@ -94,30 +107,19 @@ def report(
         max_sample_size_embeddings: Max sample size for embeddings (similarity & distances)
         statistics_path: Path of where to store the statistics to be used by `report_from_statistics`
         update_progress: A custom progress callback
+
     Returns:
-        1. Path to the HTML report
-        2. Pydantic Metrics:
-        - `accuracy`:  # Accuracy is defined as (100% - Total Variation Distance), for each distribution, and then averaged across.
-          - `overall`: Overall accuracy of synthetic data, i.e. average across univariate, bivariate and coherence.
-          - `univariate`: Average accuracy of discretized univariate distributions.
-          - `bivariate`: Average accuracy of discretized bivariate distributions.
-          - `coherence`: Average accuracy of discretized coherence distributions. Only applicable for sequential data.
-          - `overall_max`: Expected overall accuracy of a same-sized holdout. Serves as reference for `overall`.
-          - `univariate_max`: Expected univariate accuracy of a same-sized holdout. Serves as reference for `univariate`.
-          - `bivariate_max`: Expected bivariate accuracy of a same-sized holdout. Serves as reference for `bivariate`.
-          - `coherence_max`: Expected coherence accuracy of a same-sized holdout. Serves as reference for `coherence`.
-        - `similarity`:  # All similarity metrics are calculated within an embedding space.
-            - `cosine_similarity_training_synthetic`: Cosine similarity between training and synthetic centroids.
-            - `cosine_similarity_training_holdout`: Cosine similarity between training and holdout centroids. Serves as reference for `cosine_similarity_training_synthetic`.
-            - `discriminator_auc_training_synthetic`: Cross-validated AUC of a discriminative model to distinguish between training and synthetic samples.
-            - `discriminator_auc_training_holdout`: Cross-validated AUC of a discriminative model to distinguish between training and holdout samples. Serves as reference for `discriminator_auc_training_synthetic`.
-        - `distances`:  # All distance metrics are calculated within an embedding space. An equal number of training and holdout samples is considered.
-            - `ims_training`: Share of synthetic samples that are identical to a training sample.
-            - `ims_holdout`: Share of synthetic samples that are identical to a holdout sample. Serves as reference for `ims_training`.
-            - `dcr_training`: Average L2 nearest-neighbor distance between synthetic and training samples.
-            - `dcr_holdout`: Average L2 nearest-neighbor distance between synthetic and holdout samples. Serves as reference for `dcr_training`.
-            - `dcr_share`: Share of synthetic samples that are closer to a training sample than to a holdout sample. This shall not be significantly larger than 50\%.
+        Path to the generated HTML report
+        Metrics instance with accuracy, similarity, and distances metrics
     """
+
+    if syn_ctx_data is not None:
+        if ctx_primary_key is None:
+            raise ValueError("If syn_ctx_data is provided, then ctx_primary_key must also be provided.")
+        if trn_ctx_data is None:
+            raise ValueError("If syn_ctx_data is provided, then trn_ctx_data must also be provided.")
+        if hol_tgt_data is not None and hol_ctx_data is None:
+            raise ValueError("If syn_ctx_data is provided, then hol_ctx_data must also be provided.")
 
     with (
         TemporaryWorkspace() as workspace,
@@ -224,12 +226,16 @@ def report(
         progress.update(completed=20, total=100)
 
         # ensure that embeddings are all equal size for a fair 3-way comparison
-        max_sample_size_embeddings = min(
+        max_sample_size_embeddings_final = min(
             max_sample_size_embeddings or float("inf"),
             syn_sample_size,
             trn_sample_size,
             hol_sample_size or float("inf"),
         )
+
+        if max_sample_size_embeddings_final >= 10_000 and max_sample_size_embeddings is None:
+            warnings.warn(UserWarning("More than 10k embeddings will be calculated per dataset. "
+                                      "Consider setting a limit via `max_sample_size_embeddings`."))
 
         def _calc_pull_embeds(
             df_tgt: pd.DataFrame, df_ctx: pd.DataFrame, progress_from: int, progress_to: int
@@ -239,7 +245,7 @@ def report(
                 df_ctx=df_ctx,
                 ctx_primary_key=ctx_primary_key,
                 tgt_context_key=tgt_context_key,
-                max_sample_size=max_sample_size_embeddings,
+                max_sample_size=max_sample_size_embeddings_final,
             )
             # split into buckets for calculating embeddings to avoid memory issues and report continuous progress
             buckets = np.array_split(strings, progress_to - progress_from)

@@ -8,3 +8,4 @@ examples/*.py
 LICENSE_HEADER
 model-report.html
 data-report.html
+/site/
