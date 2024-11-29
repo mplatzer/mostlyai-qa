@@ -20,6 +20,28 @@ class CustomBaseModel(BaseModel):
 
 
 class Accuracy(CustomBaseModel):
+    """
+    Metrics regarding the accuracy of synthetic data, measured as the closeness of discretized lower dimensional
+    marginal distributions.
+
+    1. **Univariate Accuracy**: The accuracy of the univariate distributions for all target columns.
+    2. **Bivariate Accuracy**: The accuracy of all pair-wise distributions for target columns, as well as for target
+    columns with respect to the context columns.
+    3. **Coherence Accuracy**: The accuracy of the auto-correlation for all target columns.
+
+    Accuracy is defined as 100% - [Total Variation Distance](https://en.wikipedia.org/wiki/Total_variation_distance_of_probability_measures) (TVD),
+    whereas TVD is half the sum of the absolute differences of the relative frequencies of the corresponding
+    distributions.
+
+    These accuracies are calculated for all discretized univariate, and bivariate distributions. In case of sequential
+    data, also for all coherence distributions. Overall metrics are then calculated as the average across these
+    accuracies.
+
+    All metrics can be compared against a theoretical maximum accuracy, which is calculated for a same-sized holdout.
+    The accuracy metrics shall be as close as possible to the theoretical maximum, but not significantly higher, as
+    this would indicate overfitting.
+    """
+
     overall: float | None = Field(
         default=None,
         description="Overall accuracy of synthetic data, averaged across univariate, bivariate, and coherence.",
@@ -80,6 +102,26 @@ class Accuracy(CustomBaseModel):
 
 
 class Similarity(CustomBaseModel):
+    """
+    Metrics regarding the similarity of the full joint distributions of samples within an embedding space.
+
+    1. **Cosine Similarity**: The cosine similarity between the centroids of synthetic and training samples.
+    2. **Discriminator AUC**: The AUC of a discriminative model to distinguish between synthetic and training samples.
+
+    The SentenceTransformer model [all-MiniLM-L6-v2](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2) is
+    used to compute the embeddings of a string-ified representation of individual records. In case of sequential data
+    the records, that belong to the same group, are being concatenated. We then calculate the cosine similarity
+    between the centroids of the provided datasets within the embedding space.
+
+    Again, we expect the similarity metrics to be as close as possible to 1, but not significantly higher than what is
+    measured for the holdout data, as this would again indicate overfitting.
+
+    In addition, a discriminative ML model is trained to distinguish between training and synthetic samples. The
+    ability of this model to distinguish between training and synthetic samples is measured by the AUC score. For
+    synthetic data to be considered realistic, the AUC score should be close to 0.5, which indicates that the synthetic
+    data is indistinguishable from the training data.
+    """
+
     cosine_similarity_training_synthetic: float | None = Field(
         default=None,
         alias="cosineSimilarityTrainingSynthetic",
@@ -119,6 +161,24 @@ class Similarity(CustomBaseModel):
 
 
 class Distances(CustomBaseModel):
+    """
+    Metrics regarding the nearest neighbor distances between training, holdout, and synthetic samples in an embedding
+    space. Useful for assessing the novelty / privacy of synthetic data.
+
+    The provided data is first down-sampled, so that the number of samples match across all datasets. Note, that for
+    an optimal sensitivity of this privacy assessment it is recommended to use a 50/50 split between training and
+    holdout data, and then generate synthetic data of the same size.
+
+    The embeddings of these samples are then computed, and the L2 nearest neighbor distances are calculated for each
+    synthetic sample to the training and holdout samples. Based on these nearest neighbor distances the following
+    metrics are calculated:
+    - Identical Match Share (IMS): The share of synthetic samples that are identical to a training or holdout sample.
+    - Distance to Closest Record (DCR): The average distance of synthetic to training or holdout samples.
+
+    For privacy-safe synthetic data we expect to see about as many identical matches, and about the same distances
+    for synthetic samples to training, as we see for synthetic samples to holdout.
+    """
+
     ims_training: float | None = Field(
         default=None,
         alias="imsTraining",
@@ -161,12 +221,18 @@ class Distances(CustomBaseModel):
 
 
 class Metrics(CustomBaseModel):
-    accuracy: Accuracy | None = Field(default=None, description="Metrics related to accuracy of synthetic data.")
+    accuracy: Accuracy | None = Field(
+        default=None,
+        description="Metrics regarding the accuracy of synthetic data, measured as the closeness of discretized lower "
+        "dimensional marginal distributions.",
+    )
     similarity: Similarity | None = Field(
-        default=None, description="Metrics related to similarity between distributions in an embedding space."
+        default=None,
+        description="Metrics regarding the similarity of the full joint distributions of samples within an embedding "
+        "space.",
     )
     distances: Distances | None = Field(
         default=None,
-        description="Metrics related to nearest neighbor distances between training, holdout, and synthetic samples "
-        "in an embedding space.",
+        description="Metrics regarding the nearest neighbor distances between training, holdout, and synthetic "
+        "samples in an embedding space. Useful for assessing the novelty / privacy of synthetic data.",
     )
