@@ -52,13 +52,8 @@ nav:
   - API Reference: api.md
   - Examples: examples.md
 
-extra:
-  version:
-    provider: mike
-
 plugins:
   - search
-  - mike
   - mkdocstrings:
       handlers:
         python:
@@ -70,8 +65,7 @@ plugins:
             show_signature: true
             separate_signature: true
             show_docstring_examples: true
-#            show_signature_annotations: true
-#            line_length: 60
+            docstring_section_style: table
             extensions:
             - griffe_fieldz
             docstring_style: google
