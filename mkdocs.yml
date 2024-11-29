@@ -49,7 +49,7 @@ nav:
   - Home: index.md
   - Metrics: metrics.md
   - API Reference: api.md
-  - HTML Report: report.md
+  - Examples: examples.md
 
 
 plugins:
