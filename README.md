@@ -1,10 +1,6 @@
 # Synthetic Data - Quality Assurance 🔎
 
-[![Documentation](https://img.shields.io/badge/docs-latest-green)](https://mostly-ai.github.io/mostlyai-qa/)
-[![stats](https://pepy.tech/badge/mostlyai-qa)](https://pypi.org/project/mostlyai-qa/) 
-![license](https://img.shields.io/github/license/mostly-ai/mostlyai-qa) 
-![GitHub Release](https://img.shields.io/github/v/release/mostly-ai/mostlyai-qa) 
-![PyPI - Python Version](https://img.shields.io/pypi/pyversions/mostlyai-qa)
+[![Documentation](https://img.shields.io/badge/docs-latest-green)](https://mostly-ai.github.io/mostlyai-qa/) [![stats](https://pepy.tech/badge/mostlyai-qa)](https://pypi.org/project/mostlyai-qa/) ![license](https://img.shields.io/github/license/mostly-ai/mostlyai-qa) ![GitHub Release](https://img.shields.io/github/v/release/mostly-ai/mostlyai-qa) ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/mostlyai-qa)
 
 [Documentation](https://mostly-ai.github.io/mostlyai-qa/) | [Sample Reports](#sample-reports) | [Technical White Paper](https://raw.githubusercontent.com/mostly-ai/mostlyai-qa/refs/heads/main/docs/mostlyai-qa-technical-white-paper.pdf)
 
@@ -29,7 +25,6 @@ pip install -U mostlyai-qa
 ```python
 import pandas as pd
 import webbrowser
-import json
 from mostlyai import qa
 
 # fetch original + synthetic data

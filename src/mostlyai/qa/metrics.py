@@ -41,6 +41,7 @@ class Accuracy(CustomBaseModel):
     The accuracy metrics shall be as close as possible to the theoretical maximum, but not significantly higher, as
     this would indicate overfitting.
     """
+
     overall: float | None = Field(
         default=None,
         description="Overall accuracy of synthetic data, averaged across univariate, bivariate, and coherence.",
@@ -120,6 +121,7 @@ class Similarity(CustomBaseModel):
     synthetic data to be considered realistic, the AUC score should be close to 0.5, which indicates that the synthetic
     data is indistinguishable from the training data.
     """
+
     cosine_similarity_training_synthetic: float | None = Field(
         default=None,
         alias="cosineSimilarityTrainingSynthetic",
@@ -176,6 +178,7 @@ class Distances(CustomBaseModel):
     For privacy-safe synthetic data we expect to see about as many identical matches, and about the same distances
     for synthetic samples to training, as we see for synthetic samples to holdout.
     """
+
     ims_training: float | None = Field(
         default=None,
         alias="imsTraining",
@@ -221,14 +224,15 @@ class Metrics(CustomBaseModel):
     accuracy: Accuracy | None = Field(
         default=None,
         description="Metrics regarding the accuracy of synthetic data, measured as the closeness of discretized lower "
-                    "dimensional marginal distributions.")
+        "dimensional marginal distributions.",
+    )
     similarity: Similarity | None = Field(
         default=None,
         description="Metrics regarding the similarity of the full joint distributions of samples within an embedding "
-                    "space."
+        "space.",
     )
     distances: Distances | None = Field(
         default=None,
         description="Metrics regarding the nearest neighbor distances between training, holdout, and synthetic "
-                    "samples in an embedding space. Useful for assessing the novelty / privacy of synthetic data.",
+        "samples in an embedding space. Useful for assessing the novelty / privacy of synthetic data.",
     )

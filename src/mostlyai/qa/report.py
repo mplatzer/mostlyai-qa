@@ -234,8 +234,12 @@ def report(
         )
 
         if max_sample_size_embeddings_final >= 10_000 and max_sample_size_embeddings is None:
-            warnings.warn(UserWarning("More than 10k embeddings will be calculated per dataset. "
-                                      "Consider setting a limit via `max_sample_size_embeddings`."))
+            warnings.warn(
+                UserWarning(
+                    "More than 10k embeddings will be calculated per dataset. "
+                    "Consider setting a limit via `max_sample_size_embeddings`."
+                )
+            )
 
         def _calc_pull_embeds(
             df_tgt: pd.DataFrame, df_ctx: pd.DataFrame, progress_from: int, progress_to: int
