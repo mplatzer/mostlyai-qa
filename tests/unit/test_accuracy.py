@@ -37,6 +37,7 @@ from mostlyai.qa.accuracy import (
     trim_labels,
     calculate_correlations,
     plot_store_correlation_matrices,
+    bin_categorical,
 )
 from mostlyai.qa.sampling import pull_data_for_accuracy, sample_two_consecutive_rows
 from mostlyai.qa.common import (
@@ -496,6 +497,14 @@ class TestBinData:
         df_counts = df["nans"].value_counts().to_dict()
         assert df_counts["(n/a)"] == 10
 
+    def test_bin_categorical(self):
+        x = pd.Series(["a", "b"] * 50 + ["x"])
+        col, _ = bin_categorical(x, 5)
+        assert len(col) == 101
+        x = pd.Series([True, False] * 50 + [np.nan] * 100, dtype="object")
+        col, _ = bin_categorical(x, 5)
+        assert len(col) == 200
+
     def test_bin_numeric(self):
         # test several edge cases
         cases = [
@@ -534,6 +543,10 @@ class TestBinData:
                 ),
                 ["⪰ 2023-01-30 13:00:00.333000"] * 20,
             ),  # two values
+            (
+                pd.Series([pd.NaT, "2024-11-20"], dtype="datetime64[ns]"),
+                ["(n/a)", "⪰ 2024-Nov-20"],
+            ),  # single value with leading N/A
         ]
 
         for col, expected in cases:
